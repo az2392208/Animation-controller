@@ -6,10 +6,13 @@ public class Animation_Processer
 {
     #region Variables
     Animator m_animator;
-    AnimatorOverrideController m_curAnimatorController;
+
     Animation_Object m_curAnimationSet;
+    Animation_MatchTarget_Object m_curAnimationMatchSet;
 
     int m_curAnimationLayer;
+
+    // -------------------------------------------------------------------------------- //
 
     string m_lastStateAnimationName;
     string m_curStateAnimationName;
@@ -27,6 +30,9 @@ public class Animation_Processer
     bool m_insertingPlayable;
     bool m_playablePlaying;
     bool m_insertPlayableFirst;
+
+    // -------------------------------------------------------------------------------- //
+
     #endregion
 
     #region Init
@@ -129,7 +135,7 @@ public class Animation_Processer
         }
 
         // 判定混合动画是否播放完毕并返回当前状态动画
-        if (m_blending && m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).IsName(m_curBlendAnimation.blendAnimation))
+        if (m_blending && m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).IsName(m_curBlendAnimation.blendAnimation) && !m_insertPlayableFirst)
         {
             //                                                                                                                                         //TO DO
             if (m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).normalizedTime > 1f - m_curBlendAnimation.toBlendAnimationTransitionDuration)
@@ -141,12 +147,37 @@ public class Animation_Processer
     }
     #endregion
 
+    #region Match Methods
+    public void MatchAnimaionTarget()
+    {
+        if (m_curAnimationMatchSet)
+        {
+            for(int i = 0; i < m_curAnimationMatchSet.animationTargetMatches.Count; i++)
+            {
+                if(m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).IsName(m_curAnimationMatchSet.animationTargetMatches[i].animationName))
+                {
+                    if (!m_animator.IsInTransition(m_curAnimationLayer))
+                    {
+                        Animation_MatchTarget_Object.AnimationTargetMatch tmpMatch = m_curAnimationMatchSet.animationTargetMatches[i];
+                        m_animator.MatchTarget(tmpMatch.matchPostion, tmpMatch.matchRotation, tmpMatch.avatarTarget, new MatchTargetWeightMask(tmpMatch.postionWeight, tmpMatch.rotationWeight), tmpMatch.startTime, tmpMatch.targetTime);
+                    }
+                }
+            }
+        }
+    }
+    #endregion
+
     #region Register Methods
-    public void Register(Animator animator, Animation_Object animationSet, int animationLayer)
+    public void MainRegister(Animator animator, Animation_Object animationSet, int animationLayer)
     {
         m_animator = animator;
         m_curAnimationSet = animationSet;
         m_curAnimationLayer = animationLayer;
+    }
+
+    public void MatchTargetRegister(Animation_MatchTarget_Object animationMatchSet)
+    {
+        m_curAnimationMatchSet = animationMatchSet;
     }
     #endregion
 
@@ -160,6 +191,21 @@ public class Animation_Processer
     {
         m_curPlayableAnimationName = animationName;
         m_insertingPlayable = true;
+    }
+
+    public void SetTargetMatch(string animationName, Vector3 targetPostion, Quaternion targetRotation)
+    {
+        if (m_curAnimationMatchSet)
+        {
+            for (int i = 0; i < m_curAnimationMatchSet.animationTargetMatches.Count; i++)
+            {
+                if(animationName == m_curAnimationMatchSet.animationTargetMatches[i].animationName)
+                {
+                    m_curAnimationMatchSet.animationTargetMatches[i].matchPostion = targetPostion;
+                    m_curAnimationMatchSet.animationTargetMatches[i].matchRotation = targetRotation;
+                }
+            }
+        }
     }
     #endregion
 }
