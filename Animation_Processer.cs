@@ -1,10 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks.Sources;
 using UnityEngine;
 
 public class Animation_Processer
 {
     #region Variables
+    // -------------------------------------------------------------------------------- //
+
     Animator m_animator;
 
     Animation_Object m_curAnimationSet;
@@ -33,6 +36,25 @@ public class Animation_Processer
 
     // -------------------------------------------------------------------------------- //
 
+    public delegate void OnAnimationComplete();
+
+    public event OnAnimationComplete onPlayableAnimationComplete;
+    public event OnAnimationComplete onStateAnimationComplete;
+
+    public delegate void OnAnimationStart();
+
+    public event OnAnimationStart onPlayableAnimationStart;
+    public event OnAnimationStart onStateAnimationStart;
+
+    // -------------------------------------------------------------------------------- //
+
+    #endregion
+
+    #region Properties
+    public bool isBlending
+    {
+        get { return m_blending; }
+    }
     #endregion
 
     #region Init
@@ -69,11 +91,14 @@ public class Animation_Processer
                     // 播放过渡动画
                     else
                     {
-                        m_animator.CrossFadeInFixedTime(m_curAnimationSet.stateAnimationBlends[i].blendAnimation, m_curAnimationSet.stateAnimationBlends[i].fromBlendAnimationTransitionDuration, m_curAnimationLayer-m_curAnimationLayer, m_curAnimationSet.stateAnimationBlends[i].fromBlendAnimationTransitionOffset);
+                        m_animator.CrossFadeInFixedTime(m_curAnimationSet.stateAnimationBlends[i].blendAnimation, m_blending ? m_curAnimationSet.animationGlobalTransitionDuration : m_curAnimationSet.stateAnimationBlends[i].fromBlendAnimationTransitionDuration, m_curAnimationLayer, m_blending ? 0f : m_curAnimationSet.stateAnimationBlends[i].fromBlendAnimationTransitionOffset);
 
                         m_curBlendAnimation = m_curAnimationSet.stateAnimationBlends[i];
 
                         m_blending = true;
+
+                        // 过渡动画开始事件
+                        OnStateAnimationStart();
                     }
 
                     m_lastStateAnimationName = m_curStateAnimationName;
@@ -114,34 +139,41 @@ public class Animation_Processer
 
             m_insertingPlayable = false;
             m_playablePlaying = true;
+
+            // 插入动画开始事件
+            OnPlayableAnimationStart();
         }
 
         // 判定插入动画是否播放完毕并返回当前状态动画
         if (m_playablePlaying && m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).IsName(m_curPlayableAnimation.animationName))
         {
-            //                                                                                                                                         //TO DO
             if (m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).normalizedTime > 1f - m_curPlayableAnimation.toPlayableAnimationTransitionDuration)
             {
                 m_animator.CrossFadeInFixedTime(m_curStateAnimationName, m_insertPlayableFirst ? m_curAnimationSet.animationGlobalTransitionDuration : m_curPlayableAnimation.toPlayableAnimationTransitionDuration, m_curAnimationLayer, m_curPlayableAnimation.toPlayableAnimationTransitionOffset);
-                m_playablePlaying = false;
 
+                m_playablePlaying = false;
+                
                 // 若插入优先级高于过渡优先级
                 if (m_insertPlayableFirst)
-                {
                     // 重置优先级
                     m_insertPlayableFirst = false;
-                }
+                
+                // 插入动画完成事件
+                OnPlayableAnimationComplete();
             }
         }
 
         // 判定混合动画是否播放完毕并返回当前状态动画
         if (m_blending && m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).IsName(m_curBlendAnimation.blendAnimation) && !m_insertPlayableFirst)
         {
-            //                                                                                                                                         //TO DO
             if (m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).normalizedTime > 1f - m_curBlendAnimation.toBlendAnimationTransitionDuration)
             {
                 m_animator.CrossFadeInFixedTime(m_curStateAnimationName.ToString(), m_curBlendAnimation.toBlendAnimationTransitionDuration, m_curAnimationLayer, m_curBlendAnimation.toBlendAnimationTransitionOffset);
+
                 m_blending = false;
+
+                // 过渡动画完成事件
+                OnStateAnimationComplete();
             }
         }
     }
@@ -152,9 +184,9 @@ public class Animation_Processer
     {
         if (m_curAnimationMatchSet)
         {
-            for(int i = 0; i < m_curAnimationMatchSet.animationTargetMatches.Count; i++)
+            for (int i = 0; i < m_curAnimationMatchSet.animationTargetMatches.Count; i++)
             {
-                if(m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).IsName(m_curAnimationMatchSet.animationTargetMatches[i].animationName))
+                if (m_animator.GetCurrentAnimatorStateInfo(m_curAnimationLayer).IsName(m_curAnimationMatchSet.animationTargetMatches[i].animationName))
                 {
                     if (!m_animator.IsInTransition(m_curAnimationLayer))
                     {
@@ -164,6 +196,28 @@ public class Animation_Processer
                 }
             }
         }
+    }
+    #endregion
+
+    #region Call Back Methods
+    void OnStateAnimationComplete()
+    {
+        onStateAnimationComplete();
+    }
+
+    void OnStateAnimationStart()
+    {
+        onStateAnimationStart();
+    }
+
+    void OnPlayableAnimationComplete()
+    {
+        onPlayableAnimationComplete();
+    }
+
+    void OnPlayableAnimationStart()
+    {
+        onPlayableAnimationStart();
     }
     #endregion
 
@@ -184,10 +238,10 @@ public class Animation_Processer
     #region Play Methods
     public void PlayStateAnimation(string animationName)
     {
-        m_curStateAnimationName = animationName;   
+        m_curStateAnimationName = animationName;
     }
 
-    public void PlayPlayableAnimation(string animationName) 
+    public void PlayPlayableAnimation(string animationName)
     {
         m_curPlayableAnimationName = animationName;
         m_insertingPlayable = true;
@@ -199,7 +253,7 @@ public class Animation_Processer
         {
             for (int i = 0; i < m_curAnimationMatchSet.animationTargetMatches.Count; i++)
             {
-                if(animationName == m_curAnimationMatchSet.animationTargetMatches[i].animationName)
+                if (animationName == m_curAnimationMatchSet.animationTargetMatches[i].animationName)
                 {
                     m_curAnimationMatchSet.animationTargetMatches[i].matchPostion = targetPostion;
                     m_curAnimationMatchSet.animationTargetMatches[i].matchRotation = targetRotation;
